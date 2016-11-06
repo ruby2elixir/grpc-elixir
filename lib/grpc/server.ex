@@ -37,19 +37,25 @@ defmodule GRPC.Server do
   end
 
   defp handle_request(false, false, %{server: server_mod} = stream, func_name, request) do
+    case apply(server_mod, func_name, [request, stream]) do
+      {response, stream} -> {:ok, stream, response}
+      response -> {:ok, stream, response}
+    end
     response = apply(server_mod, func_name, [request, stream])
     {:ok, stream, response}
   end
   defp handle_request(false, true, %{server: server_mod} = stream, func_name, request) do
-    apply(server_mod, func_name, [request, stream])
+    stream = apply(server_mod, func_name, [request, stream])
     {:ok, stream}
   end
   defp handle_request(true, false, %{server: server_mod} = stream, func_name, req_stream) do
-    response = apply(server_mod, func_name, [req_stream, stream])
-    {:ok, stream, response}
+    case apply(server_mod, func_name, [req_stream, stream]) do
+      {response, stream} -> {:ok, stream, response}
+      response -> {:ok, stream, response}
+    end
   end
   defp handle_request(true, true, %{server: server_mod} = stream, func_name, req_stream) do
-    apply(server_mod, func_name, [req_stream, stream])
+    stream = apply(server_mod, func_name, [req_stream, stream])
     {:ok, stream}
   end
 
@@ -62,7 +68,8 @@ defmodule GRPC.Server do
   end
   def start(server, host, port, opts) when is_integer(port) do
     adapter = Keyword.get(opts, :adapter, GRPC.Adapter.Cowboy)
-    adapter.start(server, host, port, opts)
+    state = Keyword.get(opts, :state, %{})
+    adapter.start(server, {host, port}, state, opts)
   end
 
   def stop(server, opts \\ []) do

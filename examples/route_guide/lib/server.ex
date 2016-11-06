@@ -3,20 +3,21 @@ defmodule Routeguide.RouteGuide.Server do
   alias GRPC.Server
   @json_path Path.expand("../priv/route_guide_db.json", __DIR__)
 
-  def get_feature(point, %{state: features} = _stream) do
+  def get_feature(point, %{state: %{features: features}} = _stream) do
     default_feature = Routeguide.Feature.new(location: point)
     Enum.find features, default_feature, fn (feature) ->
       feature.location == point
     end
   end
 
-  def list_features(rect, %{state: features} = stream) do
+  def list_features(rect, %{state: %{features: features}} = stream) do
     features
     |> Enum.filter(fn %{location: loc} -> in_range?(loc, rect) end)
     |> Enum.each(fn feature -> Server.stream_send(stream, feature) end)
+    stream
   end
 
-  def record_route(req_stream, %{state: features} = _stream) do
+  def record_route(req_stream, %{state: %{features: features}} = _stream) do
     start_time = now_ts
     {_, distance, point_count, feature_count} =
       Enum.reduce req_stream, {nil, 0, 0, 0}, fn (point, {last, distance, point_count, feature_count}) ->
@@ -28,6 +29,19 @@ defmodule Routeguide.RouteGuide.Server do
       end
     Routeguide.RouteSummary.new(point_count: point_count, feature_count: feature_count,
                                 distance: distance, elapsed_time: now_ts - start_time)
+  end
+
+  def route_chat(req_stream, %{state: %{route_notes: notes} = state} = stream) do
+    IO.inspect(notes)
+    notes = Enum.reduce req_stream, notes, fn (note, notes) ->
+      key = serialize_location(note.location)
+      new_notes = Map.update(notes, key, [note], &(&1 ++ [note]))
+      Enum.each new_notes[key], fn note ->
+        Server.stream_send(stream, note)
+      end
+      new_notes
+    end
+    %{stream | state: Map.put(state, :route_notes, notes)}
   end
 
   def load_features do
@@ -77,5 +91,9 @@ defmodule Routeguide.RouteGuide.Server do
 
   defp sqr(num) do
     num * num
+  end
+
+  def serialize_location(p) do
+    "#{p.latitude} #{p.longitude}"
   end
 end

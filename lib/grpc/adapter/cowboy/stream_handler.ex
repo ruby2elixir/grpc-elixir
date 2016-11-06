@@ -118,8 +118,8 @@ defmodule GRPC.Adapter.Cowboy.StreamHandler do
 
   def execute(_, _, []), do: :ok
   def execute(req, env, [middleware|tail]) do
-    res = middleware.execute(req, env)
-    case res do
+    IO.inspect(env)
+    case middleware.execute(req, env) do
       {:ok, req2, env2} ->
         execute(req2, env2, tail)
       {:suspend, module, function, args} ->

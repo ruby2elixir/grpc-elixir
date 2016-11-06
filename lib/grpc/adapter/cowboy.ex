@@ -1,7 +1,7 @@
 defmodule GRPC.Adapter.Cowboy do
-  def start(server, host, port, opts) do
+  def start(server, {host, port}, state, opts) do
     dispatch = :cowboy_router.compile([
-      {host, [{:_, GRPC.Adapter.Cowboy.Handler, {server, opts}}]}
+      {host, [{:_, GRPC.Adapter.Cowboy.Handler, {server, state, opts}}]}
     ])
     {:ok, _} = :cowboy.start_clear(server, 100,
       [port: port], %{:env => %{dispatch: dispatch},
